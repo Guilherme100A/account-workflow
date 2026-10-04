@@ -20,6 +20,7 @@ export async function openSession(opts: BrowserOptions = {}): Promise<Session> {
     humanize: opts.humanize ?? false,
     locale: opts.locale,
     timezone: opts.timezone,
+    proxy: opts.proxy,
     launchOptions: opts.slowMo ? { slowMo: opts.slowMo } : undefined,
   });
   const context = await browser.newContext();

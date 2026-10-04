@@ -139,3 +139,26 @@ Valores aceitam literal ou função `(ctx) => valor` (acesso a `ctx.input`, `ctx
 | `assert(descrição, predicado)` | Falha se `predicado(ctx)` for falso. |
 | `custom(nome, run)` | Passo livre para lógica específica. |
 | `optional(step)` | Marca um passo como opcional: a falha é registrada mas não interrompe o workflow. |
+
+## Pool de proxy com rotação do provedor
+
+Cada execução abre um navegador novo conectado ao gateway configurado. O provedor
+controla quando o IP de saída troca (por conexão, tempo ou sessão). O projeto não
+chama APIs de rotação e não garante IP único por execução. Prefira manter o IP
+estável durante um workflow se o provedor oferecer essa opção. Não há fallback
+para conexão direta quando o proxy configurado falha.
+
+No PowerShell, antes de executar o workflow:
+
+```powershell
+$env:WORKFLOW_PROXY_SERVER = "http://gateway.seu-provedor.com:8080"
+$env:WORKFLOW_PROXY_USERNAME = "usuario-fornecido-pelo-provedor"
+$env:WORKFLOW_PROXY_PASSWORD = "senha-fornecida-pelo-provedor"
+npm run workflow -- run local-signup --base-url https://seu-formulario.example --headed
+```
+
+Também é possível passar apenas o gateway com `--proxy http://host:porta`.
+Credenciais ficam nas variáveis de ambiente, fora do input e relatório do workflow.
+Não publique credenciais no Git. HTTP/HTTPS autenticado é aceito; SOCKS5 autenticado
+não é suportado pelo Chromium. Sem configuração, permanece a conexão direta.
+O fluxo Google continua retornando verificações e etapas manuais sem contorná-las.

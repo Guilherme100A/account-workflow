@@ -3,6 +3,8 @@ import type { Page } from "playwright-core";
 /** Opções repassadas ao `launch()` do CloakBrowser. */
 export interface BrowserOptions {
   headless?: boolean;
+  /** Gateway da pool; a rotação de IP é controlada pelo provedor. */
+  proxy?: { server: string; username?: string; password?: string };
   /** Mouse/teclado com ritmo humano (recurso nativo do CloakBrowser). */
   humanize?: boolean;
   locale?: string;

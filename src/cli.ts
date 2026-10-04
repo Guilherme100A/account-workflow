@@ -11,6 +11,7 @@
  */
 
 import { parseArgs } from "node:util";
+import { proxyFromEnvironment } from "./core/proxy.js";
 import { runWorkflow } from "./core/runner.js";
 import { registry } from "./workflows/index.js";
 import { createTestServer } from "../test-site/server.js";
@@ -23,6 +24,7 @@ const { positionals, values } = parseArgs({
     humanize: { type: "boolean", default: false },
     "slow-mo": { type: "string" },
     "base-url": { type: "string" },
+    proxy: { type: "string" },
     set: { type: "string", multiple: true, default: [] },
   },
 });
@@ -52,6 +54,7 @@ if (command === "list") {
       config: baseUrl ? { baseUrl } : {},
       input: parseSet(values.set!),
       browser: {
+        proxy: proxyFromEnvironment(process.env, values.proxy),
         headless: !values.headed,
         humanize: values.humanize,
         slowMo: values["slow-mo"] ? Number(values["slow-mo"]) : undefined,
