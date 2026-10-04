@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cadastro — Formulário de Teste</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f5f7; display: grid; place-items: center; min-height: 100vh; margin: 0; }
+    form, #success { background: #fff; padding: 2rem; border-radius: 8px; width: min(380px, 90vw); box-shadow: 0 2px 12px #0001; }
+    label { display: block; margin-top: .9rem; font-size: .9rem; }
+    input[type=text], input[type=email], input[type=password], select { width: 100%; padding: .5rem; box-sizing: border-box; margin-top: .25rem; }
+    .inline { display: flex; gap: .5rem; align-items: center; }
+    .error { color: #c0392b; font-size: .8rem; min-height: 1em; }
+    button { margin-top: 1.2rem; width: 100%; padding: .7rem; background: #2d6cdf; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
+    button:disabled { opacity: .6; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <form id="signup-form" novalidate>
+    <h1>Criar conta</h1>
+
+    <label for="fullName">Nome completo</label>
+    <input id="fullName" name="fullName" type="text" autocomplete="name">
+    <div class="error" data-error-for="fullName"></div>
+
+    <label for="email">E-mail</label>
+    <input id="email" name="email" type="email" autocomplete="email">
+    <div class="error" data-error-for="email"></div>
+
+    <label for="password">Senha</label>
+    <input id="password" name="password" type="password" autocomplete="new-password">
+    <div class="error" data-error-for="password"></div>
+
+    <label for="confirmPassword">Confirmar senha</label>
+    <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password">
+    <div class="error" data-error-for="confirmPassword"></div>
+
+    <label for="country">País</label>
+    <select id="country" name="country">
+      <option value="">Selecione…</option>
+      <option value="BR">Brasil</option>
+      <option value="PT">Portugal</option>
+      <option value="US">Estados Unidos</option>
+      <option value="AR">Argentina</option>
+    </select>
+    <div class="error" data-error-for="country"></div>
+
+    <label class="inline"><input id="newsletter" name="newsletter" type="checkbox"> Receber novidades</label>
+    <label class="inline"><input id="terms" name="terms" type="checkbox"> Aceito os termos de uso</label>
+    <div class="error" data-error-for="terms"></div>
+
+    <button type="submit" id="submit">Cadastrar</button>
+    <div class="error" id="form-error"></div>
+  </form>
+
+  <div id="success" hidden data-testid="signup-success">
+    <h1>Conta criada!</h1>
+    <p>ID: <code id="account-id"></code></p>
+  </div>
+
+  <script>
+    const form = document.getElementById('signup-form');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.error').forEach((el) => (el.textContent = ''));
+      const data = Object.fromEntries(new FormData(form));
+      data.terms = form.terms.checked;
+      data.newsletter = form.newsletter.checked;
+
+      const btn = document.getElementById('submit');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const body = await res.json();
+        if (!body.ok) {
+          for (const [field, msg] of Object.entries(body.errors ?? {})) {
+            const el = document.querySelector(`[data-error-for="${field}"]`);
+            if (el) el.textContent = msg;
+          }
+          return;
+        }
+        document.getElementById('account-id').textContent = body.account.id;
+        form.hidden = true;
+        document.getElementById('success').hidden = false;
+      } catch (err) {
+        document.getElementById('form-error').textContent = 'Falha de rede: ' + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

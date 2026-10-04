@@ -1,0 +1,26 @@
+{
+  "name": "account-workflows",
+  "version": "1.0.0",
+  "description": "Workflows de cadastro genéricos sobre CloakBrowser",
+  "scripts": {
+    "serve": "tsx test-site/server.ts",
+    "workflow": "tsx src/cli.ts",
+    "demo": "tsx src/cli.ts run local-signup --serve",
+    "typecheck": "tsc",
+    "test": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cloakbrowser": "^0.5.11",
+    "playwright-core": "^1.63.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
