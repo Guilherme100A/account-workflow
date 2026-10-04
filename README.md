@@ -161,4 +161,3 @@ Também é possível passar apenas o gateway com `--proxy http://host:porta`.
 Credenciais ficam nas variáveis de ambiente, fora do input e relatório do workflow.
 Não publique credenciais no Git. HTTP/HTTPS autenticado é aceito; SOCKS5 autenticado
 não é suportado pelo Chromium. Sem configuração, permanece a conexão direta.
-O fluxo Google continua retornando verificações e etapas manuais sem contorná-las.
