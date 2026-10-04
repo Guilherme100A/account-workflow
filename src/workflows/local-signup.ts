@@ -5,7 +5,7 @@
 
 import { fakePerson } from "../core/data.js";
 import { defineWorkflow } from "../core/registry.js";
-import { assert, collectErrors, extractText, fillForm, goto, submitAndCapture, optional, waitVisible } from "../core/steps.js";
+import { assert, custom, collectErrors, extractText, fillForm, goto, submitAndCapture, optional, waitVisible, when, solveCaptcha } from "../core/steps.js";
 
 export interface LocalSignupInput {
   fullName: string;
@@ -57,6 +57,10 @@ export default defineWorkflow<LocalSignupInput, LocalSignupOutput>({
       "#newsletter": (ctx) => ctx.input.newsletter,
       "#terms": (ctx) => ctx.input.acceptTerms,
     }),
+    when(
+      async ctx => await ctx.page.locator("#signup-form").getAttribute("data-captcha-enabled") === "true",
+      solveCaptcha('[name="g-recaptcha-response"]'),
+    ),
     submitAndCapture("#submit", { urlPart: "/api/register", saveAs: "signup" }),
     // Se o servidor recusou, registra as mensagens exibidas antes de falhar.
     optional(collectErrors(".error")),

@@ -1,0 +1,12 @@
+export { openSession } from "./core/browser.js";
+export type { Session } from "./core/browser.js";
+export { fakePerson } from "./core/data.js";
+export type { FakePerson } from "./core/data.js";
+export { proxyFromEnvironment } from "./core/proxy.js";
+export { defineWorkflow, WorkflowRegistry } from "./core/registry.js";
+export { runWorkflow } from "./core/runner.js";
+export type { RunOptions } from "./core/runner.js";
+export * from "./core/steps.js";
+export * from "./core/types.js";
+export { captchaSolverFromEnvironment, solveRecaptchaV2 } from "./integrations/captcha-solver.js";
+export type { CaptchaSolverConfig, CaptchaSolverService, SolveResult } from "./integrations/captcha-solver.js";

@@ -111,3 +111,121 @@ export const custom = <I = any>(name: string, run: Step<I>["run"]): Step<I> => (
 
 /** Marca um passo como opcional (falha não interrompe o workflow). */
 export const optional = <I>(step: Step<I>): Step<I> => ({ ...step, optional: true });
+
+/** Executa `step` apenas se `condition` for verdadeira. */
+export const when = <I = any>(
+  condition: (ctx: WorkflowContext<I>) => boolean | Promise<boolean>,
+  step: Step<I>,
+): Step<I> => ({
+  name: `when → ${step.name}`,
+  async run(ctx) {
+    if (await condition(ctx)) await step.run(ctx);
+    else ctx.log(`  ${step.name} — condição falsa, pulando`);
+  },
+});
+
+/**
+ * Resolve reCAPTCHA v2 via serviço externo (2Captcha/CapSolver/Anti-Captcha).
+ * Extrai a sitekey do widget na página, envia para o solver, e injeta o token
+ * no campo `g-recaptcha-response`. Fallback para resolução manual se o solver
+ * não estiver configurado.
+ *
+ * @param responseSelector  Seletor do textarea de resposta do reCAPTCHA
+ *                          (padrão: '[name="g-recaptcha-response"]')
+ * @param opts.manualTimeout  Timeout para fallback manual, em ms (padrão: 120 000)
+ */
+export const solveCaptcha = (
+  responseSelector = '[name="g-recaptcha-response"]',
+  opts: { manualTimeout?: number } = {},
+): Step => ({
+  name: "resolver CAPTCHA",
+  async run(ctx) {
+    // Importação dinâmica: evita carregar o módulo quando ninguém usa o step.
+    const { captchaSolverFromEnvironment, solveRecaptchaV2 } = await import(
+      "../integrations/captcha-solver.js"
+    );
+    const solver = captchaSolverFromEnvironment(process.env);
+
+    if (!solver) {
+      ctx.log("Solver não configurado — aguardando resolução manual.");
+      ctx.log("Conclua a verificação no navegador (use --headed).");
+      await ctx.page.waitForFunction(
+        (sel: string) => {
+          const field = document.querySelector<HTMLTextAreaElement>(sel);
+          return Boolean(field?.value);
+        },
+        responseSelector,
+        { timeout: opts.manualTimeout ?? 120_000 },
+      );
+      return;
+    }
+
+    ctx.log(`Usando solver: ${solver.service}`);
+
+    // Extrair sitekey do widget na página
+    const siteKey = await ctx.page.evaluate(() => {
+      const widget = document.querySelector<HTMLElement>(".g-recaptcha, [data-sitekey]");
+      return widget?.getAttribute("data-sitekey") ?? null;
+    });
+    if (!siteKey) {
+      // Tenta extrair de um iframe do reCAPTCHA
+      const frameSiteKey = await ctx.page.evaluate(() => {
+        const frame = document.querySelector<HTMLIFrameElement>('iframe[src*="recaptcha"]');
+        if (!frame?.src) return null;
+        const match = frame.src.match(/[?&]k=([^&]+)/);
+        return match?.[1] ?? null;
+      });
+      if (!frameSiteKey) throw new Error("Não foi possível extrair a sitekey do reCAPTCHA na página");
+      return await solveAndInject(ctx, solver, frameSiteKey, responseSelector);
+    }
+
+    await solveAndInject(ctx, solver, siteKey, responseSelector);
+  },
+});
+
+async function solveAndInject(
+  ctx: WorkflowContext<any>,
+  solver: import("../integrations/captcha-solver.js").CaptchaSolverConfig,
+  siteKey: string,
+  responseSelector: string,
+): Promise<void> {
+  const { solveRecaptchaV2 } = await import("../integrations/captcha-solver.js");
+  const pageUrl = ctx.page.url();
+  ctx.log(`  siteKey: ${siteKey.slice(0, 8)}…`);
+  ctx.log(`  pageUrl: ${pageUrl}`);
+
+  const result = await solveRecaptchaV2(solver, { siteKey, pageUrl });
+  if (!result.ok || !result.token) {
+    throw new Error(`Solver falhou: ${result.error ?? "sem token"}`);
+  }
+
+  ctx.log("  Token recebido, injetando na página…");
+
+  // Injetar o token no textarea e disparar o callback do reCAPTCHA
+  await ctx.page.evaluate(
+    ({ selector, token }: { selector: string; token: string }) => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(selector);
+      if (textarea) {
+        textarea.value = token;
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      // Chamar o callback registrado pelo widget para habilitar o submit
+      if (typeof window !== "undefined" && (window as any).___grecaptcha_cfg?.clients) {
+        for (const client of Object.values((window as any).___grecaptcha_cfg.clients) as any[]) {
+          for (const comp of Object.values(client) as any[]) {
+            if (comp && typeof comp === "object") {
+              for (const val of Object.values(comp) as any[]) {
+                if (val && typeof val === "object" && typeof val.callback === "function") {
+                  try { val.callback(token); } catch { /* ignora */ }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    { selector: responseSelector, token: result.token },
+  );
+
+  ctx.log("  CAPTCHA resolvido.");
+}
