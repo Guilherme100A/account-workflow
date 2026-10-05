@@ -96,7 +96,8 @@ async function saveScreenshot(page: Page, dir: string, runId: string): Promise<s
 async function saveReport(dir: string, runId: string, result: RunResult<unknown>): Promise<string> {
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${runId}.json`);
-  // Nunca persiste a senha usada no cadastro.
-  await writeFile(file, JSON.stringify(result, (k, v) => (/password/i.test(k) ? "[redacted]" : v), 2));
+  // Nunca persiste senhas nem credenciais de API usadas na execução.
+  const secretKey = /password|senha|pwd|token|secret|api[_-]?key|authorization/i;
+  await writeFile(file, JSON.stringify(result, (k, v) => (secretKey.test(k) ? "[redacted]" : v), 2));
   return file;
 }

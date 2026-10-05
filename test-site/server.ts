@@ -19,11 +19,16 @@ const MIME: Record<string, string> = {
   ".css": "text/css",
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const COUNTRIES = new Set(["BR", "PT", "US", "AR"]);
+const COUNTRIES = new Set(["BR", "PT", "US", "AR", "MX", "CO"]);
+const PHONE_RE = /^\+?\d[\d\s\-()]{7,}$/;
+const PASSWORD_STRONG_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 
 export interface RegistrationPayload {
+  firstName?: string;
+  lastName?: string;
   fullName?: string;
   email?: string;
+  phone?: string;
   password?: string;
   confirmPassword?: string;
   country?: string;
@@ -35,16 +40,21 @@ export interface Account {
   id: string;
   fullName: string;
   email: string;
+  phone: string;
   country: string;
   newsletter: boolean;
+  verified: boolean;
   createdAt: string;
 }
 
 export function validateRegistration(body: RegistrationPayload): Record<string, string> {
   const errors: Record<string, string> = {};
-  if (!body.fullName || body.fullName.trim().length < 3) errors.fullName = "Nome muito curto";
+  if (!body.firstName || body.firstName.trim().length < 2) errors.firstName = "Nome muito curto";
+  if (!body.lastName || body.lastName.trim().length < 2) errors.lastName = "Sobrenome muito curto";
   if (!EMAIL_RE.test(body.email ?? "")) errors.email = "E-mail inválido";
+  if (!PHONE_RE.test(body.phone ?? "")) errors.phone = "Telefone inválido";
   if (!body.password || body.password.length < 8) errors.password = "Senha precisa de 8+ caracteres";
+  if (!PASSWORD_STRONG_RE.test(body.password ?? "")) errors.password = "Senha fraca: use maiúscula, minúscula, número e símbolo";
   if (body.password !== body.confirmPassword) errors.confirmPassword = "Senhas não conferem";
   if (!COUNTRIES.has(body.country ?? "")) errors.country = "País inválido";
   if (body.terms !== true) errors.terms = "Aceite os termos";
@@ -76,12 +86,15 @@ export function createTestServer() {
         if ([...accounts.values()].some((a) => a.email === body.email)) errors.email = "E-mail já cadastrado";
         if (Object.keys(errors).length) return json(res, 422, { ok: false, errors });
 
+        const fullName = body.fullName?.trim() || `${body.firstName!.trim()} ${body.lastName!.trim()}`;
         const account: Account = {
           id: crypto.randomUUID(),
-          fullName: body.fullName!.trim(),
+          fullName,
           email: body.email!,
+          phone: body.phone ?? "",
           country: body.country!,
           newsletter: Boolean(body.newsletter),
+          verified: false,
           createdAt: new Date().toISOString(),
         };
         accounts.set(account.id, account);
@@ -102,7 +115,7 @@ export function createTestServer() {
         return json(res, 200, { ok: true, code });
       }
 
-      // Verifica o código SMS.
+      // Verifica o código SMS e marca a conta como verificada.
       if (req.method === "POST" && url.pathname === "/api/verify-sms") {
         const body = (await readBody(req)) as Record<string, unknown>;
         const phone = body.phone as string | undefined;
@@ -110,6 +123,9 @@ export function createTestServer() {
         if (!phone || !code) return json(res, 400, { ok: false, error: "phone e code obrigatórios" });
         if (smsCodes.get(phone) !== code) return json(res, 422, { ok: false, error: "código inválido" });
         smsCodes.delete(phone);
+        for (const acct of accounts.values()) {
+          if (acct.phone === phone) acct.verified = true;
+        }
         return json(res, 200, { ok: true, verified: true });
       }
 

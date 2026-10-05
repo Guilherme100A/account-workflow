@@ -108,6 +108,15 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
     // Usa o horário da página, salvo se parecer fora de sincronia.
     const at = typeof ev.at === "number" && Math.abs(arrived - ev.at) < 5_000 ? ev.at : arrived;
     enqueue(at, (t) => {
+      if (ev.kind === "undo") {
+        const removed = builder.undoLast();
+        if (removed.length) {
+          log(`  ↩ removido: ${removed.map(describeStep).join(" + ")}`);
+        } else {
+          log("  ↩ nenhum passo para remover");
+        }
+        return;
+      }
       const step = builder.addPageEvent(ev, t);
       if (ev.kind === "generate" && step) void fillGenerated(ev.selector, ev.gen);
       if (ev.kind === "markAccount") {
@@ -168,7 +177,7 @@ export async function recordSession(opts: RecordOptions): Promise<RecordResult> 
       log(`● continuando a gravação "${rec.name}" a partir do passo ${rec.steps.length + 1}`);
     } else {
       log(`● gravando "${rec.name}" — faça o fluxo no navegador; feche a janela (ou Ctrl+C) para salvar`);
-      log("  dica: Alt+S = capturar valor · Alt+G = aleatório · Alt+M = login/senha · Alt+clique = verificação");
+      log("  dica: Alt+Z = desfazer · Alt+S = capturar valor · Alt+G = aleatório · Alt+M = login/senha · Alt+clique = verificação");
     }
     if (opts.append) {
       // Descarta os eventos gerados pelo próprio replay antes de começar a gravar.

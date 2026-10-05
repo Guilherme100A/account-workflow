@@ -9,6 +9,7 @@
  *   npx tsx src/cli.ts record <nome> --url <site> [--force]   grava o que você faz no navegador
  *   npx tsx src/cli.ts record <nome> --append [--set k=v]      reexecuta e continua gravando
  *   npx tsx src/cli.ts show <nome>                             lista os passos e variáveis
+ *   npx tsx src/cli.ts remove-step <nome> <número>             remove um passo gravado
  *   npx tsx src/cli.ts replay <nome> [--resume | --from N] [--headed] [--set k=v] [--base-url URL]
  *
  *   --serve   sobe o formulário de teste local numa porta livre e usa-o como baseUrl
@@ -23,7 +24,7 @@ import { recordSession } from "./recorder/recorder.js";
 import { countAccounts, listAccounts } from "./recorder/accounts.js";
 import { isGeneratorVar } from "./recorder/generators.js";
 import { replayRecording, variablesUsed } from "./recorder/replay.js";
-import { listRecordings, loadCheckpoint, loadRecording } from "./recorder/store.js";
+import { listRecordings, loadCheckpoint, loadRecording, removeRecordingStep } from "./recorder/store.js";
 import { registry } from "./workflows/index.js";
 import { createTestServer } from "../test-site/server.js";
 
@@ -49,7 +50,7 @@ const { positionals, values } = parseArgs({
   },
 });
 
-const [command, name] = positionals;
+const [command, name, stepArgument] = positionals;
 
 function parseSet(pairs: string[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -112,6 +113,11 @@ async function main(): Promise<void> {
         browser: { ...browserOptions(), headless: false },
       });
     });
+  } else if (command === "remove-step" && name && stepArgument) {
+    const stepNumber = Number(stepArgument);
+    const { recording, removed, file } = await removeRecordingStep(name, stepNumber);
+    console.log(`✔ removido: ${removed.map(describeStep).join(" + ")}`);
+    console.log(`  ${recording.steps.length} passo(s) restantes em ${file}`);
   } else if (command === "show" && name) {
     const rec = await loadRecording(name);
     if (!rec) throw new Error(`Gravação "${name}" não encontrada`);
@@ -170,6 +176,7 @@ async function main(): Promise<void> {
         "  tsx src/cli.ts run <workflow> [--serve] [--headed] [--humanize] [--set k=v]",
         "  tsx src/cli.ts record <nome> --url <site> [--force] | --append [--set k=v]",
         "  tsx src/cli.ts show <nome>",
+        "  tsx src/cli.ts remove-step <nome> <número>                         — remove uma etapa",
         "  tsx src/cli.ts replay <nome> [--resume | --from N] [--headed] [--set k=v] [--base-url URL]",
         "  tsx src/cli.ts accounts <nome>                                            — lista contas criadas",
       ].join("\n"),

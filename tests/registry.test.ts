@@ -54,8 +54,10 @@ describe("local-signup.buildInput", () => {
 
   it("gera input completo com confirmPassword igual a password", () => {
     const input = localSignup.buildInput({}, config);
-    expect(input.fullName).toBeTruthy();
+    expect(input.firstName).toBeTruthy();
+    expect(input.lastName).toBeTruthy();
     expect(input.email).toMatch(/@/);
+    expect(input.phone).toMatch(/^\+/);
     expect(input.password.length).toBeGreaterThanOrEqual(8);
     expect(input.confirmPassword).toBe(input.password);
     expect(input).toMatchObject({ country: "BR", newsletter: false, acceptTerms: true });

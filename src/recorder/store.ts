@@ -6,7 +6,7 @@
 
 import path from "node:path";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import type { Checkpoint, Recording } from "./types.js";
+import type { Checkpoint, RecordedStep, Recording } from "./types.js";
 
 export const DEFAULT_DIR = process.env.RECORDINGS_DIR ?? "recordings";
 
@@ -67,6 +67,32 @@ export async function listRecordings(dir = DEFAULT_DIR): Promise<Recording[]> {
     if (rec?.version === 1) out.push(rec);
   }
   return out;
+}
+
+/** Remove um passo pelo número exibido em `show` (1-based). */
+export async function removeRecordingStep(
+  name: string,
+  stepNumber: number,
+  dir = DEFAULT_DIR,
+): Promise<{ recording: Recording; removed: RecordedStep[]; file: string }> {
+  const rec = await loadRecording(name, dir);
+  if (!rec) throw new Error(`Gravação "${name}" não encontrada`);
+  if (!Number.isInteger(stepNumber) || stepNumber < 1 || stepNumber > rec.steps.length) {
+    throw new Error(`Passo ${stepNumber} fora do intervalo 1..${rec.steps.length}`);
+  }
+
+  const index = stepNumber - 1;
+  const removed = rec.steps.splice(index, 1);
+  // Um clique/tecla/select/check pode ter gerado o waitForUrl logo seguinte.
+  // Ao apagar a ação errada, apaga também essa consequência.
+  if (["click", "press", "select", "check"].includes(removed[0].type) && rec.steps[index]?.type === "waitForUrl") {
+    removed.push(...rec.steps.splice(index, 1));
+  }
+  rec.updatedAt = new Date().toISOString();
+  const file = await saveRecording(rec, dir);
+  // Os índices do checkpoint deixam de ser confiáveis depois da edição.
+  await clearCheckpoint(name, dir);
+  return { recording: rec, removed, file };
 }
 
 export async function saveCheckpoint(cp: Checkpoint, dir = DEFAULT_DIR): Promise<string> {

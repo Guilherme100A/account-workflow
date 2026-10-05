@@ -9,7 +9,8 @@
     "typecheck": "tsc",
     "test": "vitest run",
     "record": "tsx src/cli.ts record",
-    "replay": "tsx src/cli.ts replay"
+    "replay": "tsx src/cli.ts replay",
+    "remove-step": "tsx src/cli.ts remove-step"
   },
   "keywords": [],
   "author": "",

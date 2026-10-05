@@ -76,6 +76,28 @@ export class RecordingBuilder {
     this.recording.updatedAt = new Date(this.now()).toISOString();
   }
 
+  /**
+   * Remove a última ação gravada. Se ela causou uma navegação, remove
+   * também o `waitForUrl` correspondente para o clique não ficar pela metade.
+   */
+  undoLast(): RecordedStep[] {
+    const removed: RecordedStep[] = [];
+    const last = this.steps.pop();
+    if (!last) return removed;
+    removed.unshift(last);
+
+    if (last.type === "waitForUrl") {
+      const action = this.last();
+      if (action && ["click", "press", "select", "check"].includes(action.type)) {
+        removed.unshift(this.steps.pop()!);
+      }
+    }
+
+    this.lastActionAt = undefined;
+    this.recording.updatedAt = new Date(this.now()).toISOString();
+    return removed;
+  }
+
   private varFor(selector: string, field: string): string {
     const existing = this.fieldVars.get(selector);
     if (existing) return existing;
@@ -89,6 +111,10 @@ export class RecordingBuilder {
 
   /** Registra um evento vindo do script injetado. */
   addPageEvent(e: PageEvent, at: number = this.now()): RecordedStep | undefined {
+    if (e.kind === "undo") {
+      this.undoLast();
+      return undefined;
+    }
     const t = target(e);
     switch (e.kind) {
       case "click": {
@@ -303,5 +329,7 @@ export function describeStep(step: RecordedStep): string {
       return `ler ${who} → {{read.${step.saveAs}}}`;
     case "callApi":
       return `chamar API ${step.method ?? "GET"} ${step.url}`;
+    case "waitApi":
+      return `aguardar API ${step.method ?? "GET"} ${step.url}`;
   }
 }

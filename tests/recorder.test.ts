@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { describeStep, newRecording, RecordingBuilder } from "../src/recorder/builder.js";
 import { detectAccountVars } from "../src/recorder/accounts.js";
 import { generateValues } from "../src/recorder/generators.js";
 import { rebase, recordingToWorkflow, resumePoint, variablesUsed } from "../src/recorder/replay.js";
 import type { PageEvent } from "../src/recorder/types.js";
+
+afterEach(() => vi.unstubAllGlobals());
 
 function builderAt(start = 0) {
   let t = start;
@@ -65,6 +67,25 @@ describe("RecordingBuilder", () => {
     b.addPageEvent(input("#a", "1", { field: "nome" } as never));
     b.addPageEvent(input("#b", "2", { field: "nome" } as never));
     expect(b.recording.variables).toEqual({ nome: "1", nome_2: "2" });
+  });
+
+  it("desfaz o último passo e remove junto a navegação causada por um clique", () => {
+    const { b, clock } = builderAt();
+    b.addNavigation("https://site.example/signup");
+    clock.advance(5_000);
+    b.addPageEvent({ kind: "click", alt: false, selector: "#errado" });
+    clock.advance(100);
+    b.addNavigation("https://site.example/outra");
+
+    expect(b.undoLast().map((s) => s.type)).toEqual(["click", "waitForUrl"]);
+    expect(b.steps).toEqual([{ type: "goto", url: "https://site.example/signup" }]);
+  });
+
+  it("aceita o evento undo enviado pela barra do gravador", () => {
+    const { b } = builderAt();
+    b.addPageEvent({ kind: "click", alt: false, selector: "#errado" });
+    b.addPageEvent({ kind: "undo" });
+    expect(b.steps).toEqual([]);
   });
 });
 
@@ -225,6 +246,58 @@ describe("callApi step", () => {
   it("é descrito corretamente", () => {
     expect(describeStep({ type: "callApi", url: "https://api.example/check", method: "POST" }))
       .toBe("chamar API POST https://api.example/check");
+  });
+
+  it("detecta variáveis também na URL, headers e corpo", () => {
+    const r = newRecording("t", "https://s.example/");
+    r.steps = [{
+      type: "callApi",
+      method: "POST",
+      url: "https://api.example/{{tenant}}",
+      headers: { Authorization: "Bearer {{apiToken}}" },
+      body: '{"email":"{{email}}"}',
+    }];
+    expect(variablesUsed(r.steps)).toEqual(["tenant", "email", "apiToken"]);
+    expect(() => recordingToWorkflow(r).buildInput({}, { baseUrl: "https://s.example" }))
+      .toThrow(/tenant, email, apiToken/);
+  });
+});
+
+describe("waitApi step", () => {
+  it("é descrito corretamente", () => {
+    expect(describeStep({ type: "waitApi", url: "https://api.example/sms/1", extract: { code: "data.code" } }))
+      .toBe("aguardar API GET https://api.example/sms/1");
+  });
+
+  it("consulta novamente até o campo extraído ficar disponível", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { status: "pending" } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { code: "482917" } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const r = newRecording("t", "https://s.example/");
+    r.steps = [{
+      type: "waitApi",
+      url: "https://api.example/messages/{{api.requestId}}",
+      extract: { codigo: "data.code" },
+      intervalMs: 500,
+      timeoutMs: 5_000,
+    }];
+    const wf = recordingToWorkflow(r);
+    const input = wf.buildInput({ "api.requestId": "abc" }, wf.defaults);
+    const state: Record<string, unknown> = {};
+
+    await wf.steps[0].run({
+      page: { waitForTimeout: async () => {} } as never,
+      input,
+      config: wf.defaults,
+      state,
+      log: () => {},
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(input["api.codigo"]).toBe("482917");
+    expect(state.waitApiResponse).toMatchObject({ status: 200 });
   });
 });
 

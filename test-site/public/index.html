@@ -5,71 +5,304 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cadastro — Formulário de Teste</title>
   <style>
-    body { font-family: system-ui, sans-serif; background: #f4f5f7; display: grid; place-items: center; min-height: 100vh; margin: 0; }
-    form, #success { background: #fff; padding: 2rem; border-radius: 8px; width: min(380px, 90vw); box-shadow: 0 2px 12px #0001; }
-    label { display: block; margin-top: .9rem; font-size: .9rem; }
-    input[type=text], input[type=email], input[type=password], select { width: 100%; padding: .5rem; box-sizing: border-box; margin-top: .25rem; }
-    .inline { display: flex; gap: .5rem; align-items: center; }
-    .error { color: #c0392b; font-size: .8rem; min-height: 1em; }
-    button { margin-top: 1.2rem; width: 100%; padding: .7rem; background: #2d6cdf; color: #fff; border: 0; border-radius: 4px; cursor: pointer; }
-    button:disabled { opacity: .6; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; display: grid; place-items: center; min-height: 100vh; margin: 0; color: #1a1a2e; }
+
+    .card { background: #fff; padding: 2rem 2rem 1.5rem; border-radius: 12px; width: min(420px, 92vw); box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+
+    h1 { margin: 0 0 .25rem; font-size: 1.5rem; }
+    .subtitle { color: #666; font-size: .85rem; margin-bottom: 1.2rem; }
+
+    .steps { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    .steps .dot { width: 2.5rem; height: 4px; border-radius: 2px; background: #ddd; transition: background .3s; }
+    .steps .dot.active { background: #2d6cdf; }
+    .steps .dot.done { background: #27ae60; }
+
+    label { display: block; margin-top: .9rem; font-size: .875rem; font-weight: 500; }
+    input[type=text], input[type=email], input[type=password], input[type=tel], select {
+      width: 100%; padding: .6rem .75rem; margin-top: .25rem; border: 1.5px solid #d0d5dd; border-radius: 6px;
+      font-size: .95rem; transition: border-color .2s;
+    }
+    input:focus, select:focus { outline: none; border-color: #2d6cdf; box-shadow: 0 0 0 3px rgba(45,108,223,.12); }
+
+    .inline { display: flex; gap: .5rem; align-items: center; margin-top: .6rem; font-size: .875rem; cursor: pointer; }
+    .inline input { width: auto; margin: 0; }
+
+    .error { color: #c0392b; font-size: .8rem; min-height: 1em; margin-top: .15rem; }
+
+    .row { display: flex; gap: .75rem; }
+    .row > * { flex: 1; }
+
+    button[type=submit], .btn-primary {
+      margin-top: 1.4rem; width: 100%; padding: .7rem; background: #2d6cdf; color: #fff;
+      border: 0; border-radius: 6px; cursor: pointer; font-size: .95rem; font-weight: 500;
+      transition: background .2s;
+    }
+    button[type=submit]:hover, .btn-primary:hover { background: #1b5ac4; }
+    button:disabled, .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+
+    .btn-link { background: none; border: none; color: #2d6cdf; cursor: pointer; font-size: .85rem; padding: 0; margin-top: .5rem; }
+
+    .code-inputs { display: flex; gap: .5rem; justify-content: center; margin: 1.5rem 0; }
+    .code-inputs input {
+      width: 3rem; height: 3.2rem; text-align: center; font-size: 1.4rem; font-weight: 700;
+      border: 1.5px solid #d0d5dd; border-radius: 8px; padding: 0;
+    }
+    .code-inputs input:focus { border-color: #2d6cdf; box-shadow: 0 0 0 3px rgba(45,108,223,.12); }
+
+    .timer { text-align: center; font-size: .85rem; color: #666; margin-top: .5rem; }
+
+    .success-icon { text-align: center; margin-bottom: 1rem; }
+    .success-icon svg { width: 64px; height: 64px; }
+    .success-title { text-align: center; font-size: 1.3rem; font-weight: 600; margin-bottom: .25rem; }
+    .success-subtitle { text-align: center; color: #666; font-size: .9rem; margin-bottom: 1.5rem; }
+
+    .info-row { display: flex; justify-content: space-between; padding: .6rem 0; border-bottom: 1px solid #f0f0f0; font-size: .9rem; }
+    .info-row:last-child { border: none; }
+    .info-label { color: #888; }
+    .info-value { font-weight: 500; }
+
+    .strength-bar { height: 4px; border-radius: 2px; background: #eee; margin-top: .35rem; overflow: hidden; }
+    .strength-bar .fill { height: 100%; transition: width .3s, background .3s; }
+
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <form id="signup-form" novalidate>
+
+  <!-- ====== ETAPA 1: DADOS PESSOAIS ====== -->
+  <div class="card" id="step-1">
+    <div class="steps">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
     <h1>Criar conta</h1>
+    <p class="subtitle">Preencha seus dados para começar</p>
 
-    <label for="fullName">Nome completo</label>
-    <input id="fullName" name="fullName" type="text" autocomplete="name">
-    <div class="error" data-error-for="fullName"></div>
+    <form id="signup-form" novalidate>
+      <div class="row">
+        <div>
+          <label for="firstName">Nome</label>
+          <input id="firstName" name="firstName" type="text" autocomplete="given-name" placeholder="João">
+          <div class="error" data-error-for="firstName"></div>
+        </div>
+        <div>
+          <label for="lastName">Sobrenome</label>
+          <input id="lastName" name="lastName" type="text" autocomplete="family-name" placeholder="Silva">
+          <div class="error" data-error-for="lastName"></div>
+        </div>
+      </div>
 
-    <label for="email">E-mail</label>
-    <input id="email" name="email" type="email" autocomplete="email">
-    <div class="error" data-error-for="email"></div>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" autocomplete="email" placeholder="joao@exemplo.com">
+      <div class="error" data-error-for="email"></div>
 
-    <label for="password">Senha</label>
-    <input id="password" name="password" type="password" autocomplete="new-password">
-    <div class="error" data-error-for="password"></div>
+      <label for="phone">Telefone</label>
+      <input id="phone" name="phone" type="tel" autocomplete="tel" placeholder="+55 11 99999-0000">
+      <div class="error" data-error-for="phone"></div>
 
-    <label for="confirmPassword">Confirmar senha</label>
-    <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password">
-    <div class="error" data-error-for="confirmPassword"></div>
+      <label for="password">Senha</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+      <div class="strength-bar"><div class="fill" id="strength-fill"></div></div>
+      <div class="error" data-error-for="password"></div>
 
-    <label for="country">País</label>
-    <select id="country" name="country">
-      <option value="">Selecione…</option>
-      <option value="BR">Brasil</option>
-      <option value="PT">Portugal</option>
-      <option value="US">Estados Unidos</option>
-      <option value="AR">Argentina</option>
-    </select>
-    <div class="error" data-error-for="country"></div>
+      <label for="confirmPassword">Confirmar senha</label>
+      <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password">
+      <div class="error" data-error-for="confirmPassword"></div>
 
-    <label class="inline"><input id="newsletter" name="newsletter" type="checkbox"> Receber novidades</label>
-    <label class="inline"><input id="terms" name="terms" type="checkbox"> Aceito os termos de uso</label>
-    <div class="error" data-error-for="terms"></div>
+      <label for="country">País</label>
+      <select id="country" name="country">
+        <option value="">Selecione…</option>
+        <option value="BR">Brasil</option>
+        <option value="PT">Portugal</option>
+        <option value="US">Estados Unidos</option>
+        <option value="AR">Argentina</option>
+        <option value="MX">México</option>
+        <option value="CO">Colômbia</option>
+      </select>
+      <div class="error" data-error-for="country"></div>
 
-    <button type="submit" id="submit">Cadastrar</button>
-    <div class="error" id="form-error"></div>
-  </form>
+      <label class="inline"><input id="newsletter" name="newsletter" type="checkbox"> Receber novidades por e-mail</label>
+      <label class="inline"><input id="terms" name="terms" type="checkbox"> Aceito os <a href="#" onclick="return false">termos de uso</a> e a <a href="#" onclick="return false">política de privacidade</a></label>
+      <div class="error" data-error-for="terms"></div>
 
-  <div id="success" hidden data-testid="signup-success">
-    <h1>Conta criada!</h1>
-    <p>ID: <code id="account-id"></code></p>
+      <button type="submit" id="submit">Continuar</button>
+      <div class="error" id="form-error"></div>
+    </form>
+  </div>
+
+  <!-- ====== ETAPA 2: VERIFICAÇÃO SMS ====== -->
+  <div class="card" id="step-2" hidden>
+    <div class="steps">
+      <div class="dot done"></div>
+      <div class="dot active"></div>
+      <div class="dot"></div>
+    </div>
+    <h1>Verificar telefone</h1>
+    <p class="subtitle">Enviamos um código de 6 dígitos para <strong id="masked-phone"></strong></p>
+
+    <form id="verify-form" novalidate>
+      <div class="code-inputs" id="code-inputs">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="0" aria-label="Dígito 1">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="1" aria-label="Dígito 2">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="2" aria-label="Dígito 3">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="3" aria-label="Dígito 4">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="4" aria-label="Dígito 5">
+        <input type="text" maxlength="1" inputmode="numeric" data-idx="5" aria-label="Dígito 6">
+      </div>
+      <input type="hidden" id="sms-code-full" name="code">
+      <div class="error" id="verify-error" style="text-align:center"></div>
+      <div class="timer" id="timer-text">Reenviar código em <span id="countdown">60</span>s</div>
+      <button type="button" class="btn-link" id="resend-btn" hidden style="display:block;text-align:center;width:100%">Reenviar código</button>
+      <button type="submit" class="btn-primary" id="verify-submit" disabled>Verificar</button>
+    </form>
+  </div>
+
+  <!-- ====== ETAPA 3: SUCESSO ====== -->
+  <div class="card" id="step-3" hidden data-testid="signup-success">
+    <div class="steps">
+      <div class="dot done"></div>
+      <div class="dot done"></div>
+      <div class="dot done"></div>
+    </div>
+    <div class="success-icon">
+      <svg viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="30" fill="#27ae60" opacity=".12"/><circle cx="32" cy="32" r="24" fill="#27ae60" opacity=".2"/><path d="M20 33l8 8 16-16" stroke="#27ae60" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <p class="success-title">Conta criada!</p>
+    <p class="success-subtitle">Sua conta foi verificada e está pronta para uso.</p>
+
+    <div style="background:#f8f9fb;border-radius:8px;padding:1rem;margin-bottom:1rem">
+      <div class="info-row">
+        <span class="info-label">ID da conta</span>
+        <span class="info-value" id="account-id"></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Nome</span>
+        <span class="info-value" id="display-name"></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">E-mail</span>
+        <span class="info-value" id="display-email"></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Telefone</span>
+        <span class="info-value" id="display-phone"></span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">País</span>
+        <span class="info-value" id="display-country"></span>
+      </div>
+    </div>
   </div>
 
   <script>
+    // ===== Estado global =====
+    let accountData = {};
+    let smsPhone = '';
+    let countdownTimer = null;
+
+    // ===== Strength meter =====
+    const passwordInput = document.getElementById('password');
+    const strengthFill = document.getElementById('strength-fill');
+    passwordInput.addEventListener('input', () => {
+      const pw = passwordInput.value;
+      let score = 0;
+      if (pw.length >= 8) score++;
+      if (pw.length >= 12) score++;
+      if (/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+      if (/\d/.test(pw)) score++;
+      if (/[^A-Za-z0-9]/.test(pw)) score++;
+      const pct = Math.min(score / 5 * 100, 100);
+      const color = pct <= 20 ? '#e74c3c' : pct <= 40 ? '#e67e22' : pct <= 60 ? '#f1c40f' : pct <= 80 ? '#2ecc71' : '#27ae60';
+      strengthFill.style.width = pct + '%';
+      strengthFill.style.background = color;
+    });
+
+    // ===== Code inputs auto-advance =====
+    const codeInputs = document.querySelectorAll('#code-inputs input');
+    const fullCodeInput = document.getElementById('sms-code-full');
+    const verifySubmit = document.getElementById('verify-submit');
+
+    function getFullCode() {
+      return Array.from(codeInputs).map(i => i.value).join('');
+    }
+    function updateCodeState() {
+      const code = getFullCode();
+      fullCodeInput.value = code;
+      verifySubmit.disabled = code.length < 6;
+    }
+    codeInputs.forEach((inp, idx) => {
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.replace(/\D/g, '').slice(0, 1);
+        if (inp.value && idx < 5) codeInputs[idx + 1].focus();
+        updateCodeState();
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !inp.value && idx > 0) {
+          codeInputs[idx - 1].focus();
+        }
+      });
+      inp.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+        for (let i = 0; i < 6; i++) {
+          codeInputs[i].value = text[i] || '';
+        }
+        if (text.length > 0) codeInputs[Math.min(text.length, 5)].focus();
+        updateCodeState();
+      });
+    });
+
+    // ===== Countdown =====
+    function startCountdown() {
+      let seconds = 60;
+      const countdownEl = document.getElementById('countdown');
+      const timerText = document.getElementById('timer-text');
+      const resendBtn = document.getElementById('resend-btn');
+      timerText.hidden = false;
+      resendBtn.hidden = true;
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        seconds--;
+        countdownEl.textContent = seconds;
+        if (seconds <= 0) {
+          clearInterval(countdownTimer);
+          timerText.hidden = true;
+          resendBtn.hidden = false;
+        }
+      }, 1000);
+    }
+
+    // ===== Resend =====
+    document.getElementById('resend-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('resend-btn');
+      btn.disabled = true;
+      try {
+        await fetch('/api/sms', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ phone: smsPhone }),
+        });
+        startCountdown();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ===== Step 1: Registration =====
     const form = document.getElementById('signup-form');
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      document.querySelectorAll('.error').forEach((el) => (el.textContent = ''));
+      document.querySelectorAll('.error').forEach(el => el.textContent = '');
       const data = Object.fromEntries(new FormData(form));
+      data.fullName = ((data.firstName || '') + ' ' + (data.lastName || '')).trim();
       data.terms = form.terms.checked;
       data.newsletter = form.newsletter.checked;
 
       const btn = document.getElementById('submit');
       btn.disabled = true;
+      btn.textContent = 'Enviando…';
       try {
         const res = await fetch('/api/register', {
           method: 'POST',
@@ -78,21 +311,85 @@
         });
         const body = await res.json();
         if (!body.ok) {
-          for (const [field, msg] of Object.entries(body.errors ?? {})) {
-            const el = document.querySelector(`[data-error-for="${field}"]`);
+          for (const [field, msg] of Object.entries(body.errors || {})) {
+            const el = document.querySelector('[data-error-for="' + field + '"]');
             if (el) el.textContent = msg;
           }
           return;
         }
-        document.getElementById('account-id').textContent = body.account.id;
-        form.hidden = true;
-        document.getElementById('success').hidden = false;
+
+        // Salvar dados e ir para etapa 2
+        accountData = body.account;
+        smsPhone = data.phone;
+        document.getElementById('masked-phone').textContent = maskPhone(data.phone);
+
+        // Dispara envio de SMS
+        await fetch('/api/sms', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ phone: data.phone }),
+        });
+
+        document.getElementById('step-1').hidden = true;
+        document.getElementById('step-2').hidden = false;
+        codeInputs[0].focus();
+        startCountdown();
       } catch (err) {
         document.getElementById('form-error').textContent = 'Falha de rede: ' + err.message;
       } finally {
         btn.disabled = false;
+        btn.textContent = 'Continuar';
       }
     });
+
+    // ===== Step 2: SMS verification =====
+    document.getElementById('verify-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = getFullCode();
+      const errEl = document.getElementById('verify-error');
+      errEl.textContent = '';
+
+      verifySubmit.disabled = true;
+      verifySubmit.textContent = 'Verificando…';
+      try {
+        const res = await fetch('/api/verify-sms', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ phone: smsPhone, code }),
+        });
+        const body = await res.json();
+        if (!body.ok) {
+          errEl.textContent = body.error || 'Código inválido';
+          codeInputs.forEach(i => i.value = '');
+          codeInputs[0].focus();
+          updateCodeState();
+          return;
+        }
+
+        // Sucesso → etapa 3
+        if (countdownTimer) clearInterval(countdownTimer);
+        document.getElementById('step-2').hidden = true;
+        document.getElementById('step-3').hidden = false;
+
+        document.getElementById('account-id').textContent = accountData.id;
+        document.getElementById('display-name').textContent = accountData.fullName;
+        document.getElementById('display-email').textContent = accountData.email;
+        document.getElementById('display-phone').textContent = smsPhone;
+        const countries = { BR: 'Brasil', PT: 'Portugal', US: 'Estados Unidos', AR: 'Argentina', MX: 'México', CO: 'Colômbia' };
+        document.getElementById('display-country').textContent = countries[accountData.country] || accountData.country;
+      } catch (err) {
+        errEl.textContent = 'Falha de rede: ' + err.message;
+      } finally {
+        verifySubmit.disabled = false;
+        verifySubmit.textContent = 'Verificar';
+      }
+    });
+
+    function maskPhone(phone) {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length <= 4) return phone;
+      return phone.slice(0, -4).replace(/\d/g, '*') + phone.slice(-4);
+    }
   </script>
 </body>
 </html>

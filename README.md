@@ -25,6 +25,7 @@ O binário do navegador (~200 MB) **não** vem no `npm install`: é baixado auto
 | `npm run serve` | Sobe só o formulário de teste em `http://127.0.0.1:3000` (porta via argumento ou `PORT`). |
 | `npm run workflow -- list` | Lista os workflows registrados. |
 | `npm run workflow -- run <nome> [opções]` | Executa um workflow. |
+| `npm run remove-step -- <nome> <número>` | Remove uma etapa gravada pelo número mostrado em `show`. |
 | `npm run typecheck` | `tsc` (sem emitir arquivos). |
 | `npm test` | `vitest run` (o teste e2e só roda com `E2E=1`). |
 
@@ -162,6 +163,7 @@ Abre o Chromium (CloakBrowser) visível. Faça o fluxo normalmente; o terminal m
 ```
 
 - **Feche a janela ou aperte Ctrl+C** para terminar. A gravação também é salva a cada passo, então nada se perde se algo cair.
+- **Alt+Z** ou o botão **Desfazer** remove a última etapa. Se um clique causou uma navegação, ambos são removidos juntos.
 - **Alt+G** com o cursor num campo abre um menu de **valor aleatório** (nome, sobrenome, nome completo, e-mail, usuário, senha, número). O campo é preenchido na hora e, no replay, **cada execução gera um valor novo**. Escolha com o mouse ou pelo número; Esc fecha.
 - **Alt+clique** num elemento marca um *ponto de verificação* ("isto tem que aparecer"), sem clicar nele. Use no final (ex.: na mensagem "Conta criada") para o replay só dar sucesso se o fluxo realmente funcionou.
 - O que é gravado: cliques, digitação, selects, checkboxes/radios, Enter/Escape e navegações. Digitação no mesmo campo vira um único passo com o valor final.
@@ -171,6 +173,7 @@ Abre o Chromium (CloakBrowser) visível. Faça o fluxo normalmente; o terminal m
 ```
 npm run workflow -- show meu-fluxo
 npm run workflow -- list            # workflows em código + gravações
+npm run remove-step -- meu-fluxo 7  # remove o passo 7
 ```
 
 O JSON é legível e pode ser editado à mão (trocar seletor, remover passo, mudar URL). Cada elemento tem um seletor principal e alternativas (`fallbacks`: id, `name`, label, texto do botão, caminho CSS) testadas em ordem no replay.
@@ -284,42 +287,40 @@ Adicione um passo `callApi` no JSON para chamar uma API durante o replay — por
 - `expect2xx` (padrão: `true`): se o status não for 2xx, o replay falha nesse passo (e salva checkpoint para continuar depois).
 - Passe variáveis extras como `--set apiToken=abc123`.
 
-**Exemplo completo: capturar telefone → pedir SMS → preencher código**
+#### Aguardar uma API/OTP com `waitApi`
 
-O fluxo mais comum: o site mostra um número de telefone depois do cadastro, você precisa chamar a API de SMS com esse número, pegar o código e preencher no site.
+`waitApi` repete a requisição até todos os caminhos de `extract` existirem e não estarem vazios. Use `intervalMs` (padrão: 5000 ms) e `timeoutMs` (padrão: 120000 ms) para controlar a espera. Respostas pendentes e erros transitórios são tentados novamente até o limite.
 
-Na gravação, capture o telefone com Alt+S (nome: `telefone`). Depois edite o JSON e adicione:
+Exemplo genérico com uma API de telefone/OTP de um ambiente autorizado: obter o número, preencher no site, solicitar o envio, esperar o código e confirmá-lo. Depois de gravar as interações visuais, edite `recordings/<nome>.json` para deixar os passos nesta ordem:
 
 ```json
 [
-  { "type": "readValue", "saveAs": "telefone", "selector": "#phone-number" },
-
   { "type": "callApi", "method": "POST",
-    "url": "https://api.sms-service.example/receive",
-    "body": "{\"phone\": \"{{read.telefone}}\"}",
+    "url": "https://api.seu-provedor.example/numbers",
+    "headers": { "Authorization": "Bearer {{smsApiToken}}" },
+    "extract": { "telefone": "data.number", "pedido": "data.id" },
+    "saveAs": "numeroResponse" },
+
+  { "type": "fill", "selector": "#phone-number", "value": "{{api.telefone}}" },
+  { "type": "click", "selector": "#send-code" },
+
+  { "type": "waitApi", "method": "GET",
+    "url": "https://api.seu-provedor.example/messages/{{api.pedido}}",
+    "headers": { "Authorization": "Bearer {{smsApiToken}}" },
     "extract": { "codigo": "data.code" },
-    "saveAs": "smsResponse" },
+    "saveAs": "smsResponse",
+    "intervalMs": 5000,
+    "timeoutMs": 120000 },
 
   { "type": "fill", "selector": "#verification-code", "value": "{{api.codigo}}" },
-
   { "type": "click", "selector": "#verify-button" }
 ]
 ```
 
-No replay:
-```
-• #10 ler "Telefone" → {{read.telefone}}
-  → {{read.telefone}} = "+55 31 99999-0000"
-• #11 chamar API POST https://api.sms-service.example/receive
-  → POST https://api.sms-service.example/receive
-  HTTP 200
-  → {{api.codigo}} = "482917"
-• #12 preencher "Código de verificação" ← {{api.codigo}}
-  ← "482917"
-• #13 clicar "Verificar"
-✔ concluído
-  📋 conta salva: maria@example.test / se••••••
-     captured: { telefone: "+55 31 99999-0000" }
+Execute passando a credencial exigida pela sua API:
+
+```bash
+npm run replay -- meu-fluxo --headed --set smsApiToken=SUA_CHAVE
 ```
 
 Variáveis disponíveis em cada passo:
@@ -329,7 +330,7 @@ Variáveis disponíveis em cada passo:
 | `{{email}}` | Na gravação (digitada) ou `--set` | `{{email}}` |
 | `{{gen.*}}` | Gerada a cada execução (Alt+G) | `{{gen.email}}`, `{{gen.password}}` |
 | `{{read.*}}` | Lida da página no replay (Alt+S) | `{{read.telefone}}` |
-| `{{api.*}}` | Extraída da resposta de `callApi` | `{{api.codigo}}` |
+| `{{api.*}}` | Extraída da resposta de `callApi` ou `waitApi` | `{{api.codigo}}` |
 
 ### CAPTCHA automático no replay
 

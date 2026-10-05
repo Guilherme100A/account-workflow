@@ -48,7 +48,7 @@ export const RECORDER_SCRIPT = String.raw`
     if (queue.length > 500) queue.shift();
     persist();
     try { navigator.sendBeacon("${EVENT_ENDPOINT}", JSON.stringify(ev)); } catch (_) {}
-    addToLog(ev);
+    if (ev.kind !== "undo") addToLog(ev);
   };
 
   // === SELECTOR GENERATION ===
@@ -270,6 +270,8 @@ export const RECORDER_SCRIPT = String.raw`
     toolsRow.setAttribute("style", "display:flex;gap:5px;padding:8px 14px;border-bottom:1px solid #161616");
 
     const tools = [
+      { id: "undo", label: "Desfazer", shortcut: "Alt+Z", icon: "↩", pickable: false,
+        action: () => undoLastUi() },
       { id: "checkpoint", label: "Verificar", shortcut: "Alt+Click", icon: "✓", pickable: true,
         desc: "Clique no elemento que deve aparecer na página" },
       { id: "random", label: "Aleatório", shortcut: "Alt+G", icon: "✶", pickable: false,
@@ -353,6 +355,7 @@ export const RECORDER_SCRIPT = String.raw`
         ["Navegação", "Detectada automaticamente: goto (digitou URL) ou waitForUrl (causada por clique)."],
       ]},
       { title: "FERRAMENTAS", items: [
+        ["↩ Desfazer  Alt+Z", "Remove a última etapa gravada (e a navegação causada por ela, se houver)."],
         ["✓ Verificar  Alt+Click", "Marca elemento como checkpoint. No replay, confirma que está visível."],
         ["✶ Aleatório  Alt+G", "Gera valor aleatório (nome, email, senha…) novo a cada execução."],
         ["☉ Conta  Alt+M", "Marca campo como login ou senha. No replay, salva credenciais em .accounts.jsonl."],
@@ -413,6 +416,27 @@ export const RECORDER_SCRIPT = String.raw`
 
   function updateCount() {
     if (countEl) countEl.textContent = stepNum + (stepNum === 1 ? " passo" : " passos");
+  }
+
+  function undoLastUi() {
+    if (!logItems.length) {
+      send({ kind: "undo" });
+      showToast("Nenhum passo para remover");
+      return;
+    }
+    const last = logItems.pop();
+    if (last && last.el) last.el.remove();
+    stepNum = Math.max(0, stepNum - 1);
+    updateCount();
+    if (stepNum === 0 && logEl && !document.getElementById("__aw_empty")) {
+      const empty = document.createElement("div");
+      empty.id = "__aw_empty";
+      empty.setAttribute("style", "color:#444;font-size:11px;padding:8px 0;text-align:center");
+      empty.textContent = "Os passos aparecem aqui conforme você interage";
+      logEl.appendChild(empty);
+    }
+    send({ kind: "undo" });
+    showToast("Última etapa removida");
   }
 
   function updateTimer() {
@@ -540,6 +564,13 @@ export const RECORDER_SCRIPT = String.raw`
       e.preventDefault(); e.stopPropagation();
       exitPick();
     }
+  }, true);
+
+  // Alt+Z: desfaz a última etapa gravada.
+  document.addEventListener("keydown", function(e) {
+    if (!e.isTrusted || !e.altKey || e.code !== "KeyZ") return;
+    e.preventDefault(); e.stopPropagation();
+    undoLastUi();
   }, true);
 
   // Clicks

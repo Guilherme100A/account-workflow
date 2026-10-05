@@ -58,6 +58,24 @@ describe.skipIf(process.env.E2E !== "1")("e2e: gravador", () => {
     expect(server.accounts.size).toBe(1);
   }, 180_000);
 
+  it("Alt+Z remove a última etapa durante a gravação", async () => {
+    const { recording } = await recordSession({
+      name: "desfazer",
+      url: baseUrl,
+      recordingsDir: dir,
+      browser: { headless: true },
+      logger: quiet,
+      async drive(page) {
+        await page.locator("#firstName").pressSequentially("Clique errado");
+        await page.keyboard.press("Alt+KeyZ");
+        await page.waitForTimeout(700);
+      },
+    });
+
+    expect(recording.steps).toEqual([{ type: "goto", url: baseUrl + "/" }]);
+    expect(recording.variables).toEqual({});
+  }, 180_000);
+
   it("replica a gravação com outros dados", async () => {
     const rec = (await loadRecording("cadastro", dir))!;
     const result = await replayRecording(rec, {

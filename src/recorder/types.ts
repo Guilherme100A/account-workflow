@@ -57,6 +57,28 @@ export type RecordedStep =
        * Exemplo: `{ "codigo": "data.code" }` → `{{api.codigo}}` no próximo fill.
        */
       extract?: Record<string, string>;
+    }
+  /**
+   * Consulta uma API repetidamente até todos os campos de `extract` existirem.
+   * Útil para esperar resultados assíncronos, como um OTP de um ambiente de
+   * testes autorizado, sem fixar o projeto a um provedor específico.
+   */
+  | {
+      type: "waitApi";
+      url: string;
+      method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      headers?: Record<string, string>;
+      body?: string;
+      /** Nome em `ctx.state` onde a última resposta é salva. */
+      saveAs?: string;
+      /** Exige resposta 2xx para considerá-la pronta. Padrão: true. */
+      expect2xx?: boolean;
+      /** Campos que devem aparecer; viram variáveis `{{api.<nome>}}`. */
+      extract: Record<string, string>;
+      /** Intervalo entre consultas. Padrão: 5000 ms; mínimo: 500 ms. */
+      intervalMs?: number;
+      /** Tempo total de espera. Padrão: 120000 ms. */
+      timeoutMs?: number;
     };
 
 export interface Recording {
@@ -106,6 +128,8 @@ export interface Checkpoint {
 
 /** Evento bruto enviado pelo script injetado na página (`id` único, `at` = Date.now() na página). */
 export type PageEvent = { id?: string; at?: number } & (
+  /** Alt+Z / botão Desfazer: remove a última etapa gravada. */
+  | { kind: "undo" }
   | ({ kind: "click"; alt: boolean } & Target)
   | ({ kind: "input"; value: string; inputType: string; field: string } & Target)
   | ({ kind: "select"; value: string; field: string } & Target)

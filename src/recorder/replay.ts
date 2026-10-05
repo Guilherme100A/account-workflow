@@ -34,7 +34,16 @@ export interface ToWorkflowOptions {
 export function variablesUsed(steps: RecordedStep[]): string[] {
   const names = new Set<string>();
   for (const s of steps) {
-    if ("value" in s) for (const m of s.value.matchAll(VAR_RE)) names.add(m[1]);
+    const templates: string[] = [];
+    if ("value" in s) templates.push(s.value);
+    if (s.type === "callApi" || s.type === "waitApi") {
+      templates.push(s.url);
+      if (s.body) templates.push(s.body);
+      if (s.headers) templates.push(...Object.values(s.headers));
+    }
+    for (const template of templates) {
+      for (const m of template.matchAll(VAR_RE)) names.add(m[1]);
+    }
   }
   return [...names];
 }
@@ -104,6 +113,55 @@ function wrapWithCaptcha(step: Step<Vars>, guard: CaptchaGuard | undefined): Ste
       }
     },
   };
+}
+
+type ApiRecordedStep = Extract<RecordedStep, { type: "callApi" | "waitApi" }>;
+
+async function requestApi(step: ApiRecordedStep, ctx: Ctx, requestTimeout: number) {
+  const resolvedUrl = interpolate(step.url, ctx.input);
+  const headers: Record<string, string> = {};
+  if (step.headers) {
+    for (const [k, v] of Object.entries(step.headers)) headers[k] = interpolate(v, ctx.input);
+  }
+  const body = step.body ? interpolate(step.body, ctx.input) : undefined;
+  const method = step.method ?? "GET";
+
+  ctx.log(`  → ${method} ${resolvedUrl}`);
+  const res = await fetch(resolvedUrl, {
+    method,
+    headers: { "Content-Type": "application/json", ...headers },
+    body: method !== "GET" ? body : undefined,
+    signal: AbortSignal.timeout(requestTimeout),
+  });
+
+  let resBody: unknown;
+  const text = await res.text();
+  try { resBody = JSON.parse(text); } catch { resBody = text; }
+  return { status: res.status, body: resBody };
+}
+
+function extractApiValues(
+  body: unknown,
+  extract: Record<string, string> | undefined,
+): { values: Record<string, string>; missing: string[] } {
+  const values: Record<string, string> = {};
+  const missing: string[] = [];
+  for (const [varName, path] of Object.entries(extract ?? {})) {
+    const value = body && typeof body === "object"
+      ? resolvePath(body as Record<string, unknown>, path)
+      : undefined;
+    if (value === undefined || value === null || value === "") missing.push(path);
+    else values[varName] = String(value);
+  }
+  return { values, missing };
+}
+
+function saveApiValues(values: Record<string, string>, ctx: Ctx): void {
+  for (const [varName, value] of Object.entries(values)) {
+    const key = `api.${varName}`;
+    ctx.input[key] = value;
+    ctx.log(`  → {{${key}}} = ${JSON.stringify(value)}`);
+  }
 }
 
 function toStep(step: RecordedStep, index: number, rec: Recording, timeout: number): Step<Vars> {
@@ -185,46 +243,66 @@ function toStep(step: RecordedStep, index: number, rec: Recording, timeout: numb
       return {
         name,
         async run(ctx) {
-          const resolvedUrl = interpolate(step.url, ctx.input);
-          const headers: Record<string, string> = {};
-          if (step.headers) {
-            for (const [k, v] of Object.entries(step.headers)) headers[k] = interpolate(v, ctx.input);
-          }
-          const body = step.body ? interpolate(step.body, ctx.input) : undefined;
-          const method = step.method ?? "GET";
-
-          ctx.log(`  → ${method} ${resolvedUrl}`);
-          const res = await fetch(resolvedUrl, {
-            method,
-            headers: { "Content-Type": "application/json", ...headers },
-            body: method !== "GET" ? body : undefined,
-            signal: AbortSignal.timeout(timeout * 2),
-          });
-
-          let resBody: unknown;
-          const text = await res.text();
-          try { resBody = JSON.parse(text); } catch { resBody = text; }
-
-          const result = { status: res.status, body: resBody };
+          const result = await requestApi(step, ctx, timeout * 2);
           ctx.state[step.saveAs ?? "apiResponse"] = result;
-          ctx.log(`  HTTP ${res.status}`);
+          ctx.log(`  HTTP ${result.status}`);
 
-          if ((step.expect2xx ?? true) && (res.status < 200 || res.status >= 300)) {
-            throw new Error(`API retornou ${res.status}: ${typeof resBody === "string" ? resBody.slice(0, 200) : JSON.stringify(resBody).slice(0, 200)}`);
+          if ((step.expect2xx ?? true) && (result.status < 200 || result.status >= 300)) {
+            const preview = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
+            throw new Error(`API retornou ${result.status}: ${(preview ?? "").slice(0, 200)}`);
           }
 
-          // Extrai campos da resposta e salva como variáveis {{api.*}}
-          if (step.extract && resBody && typeof resBody === "object") {
-            for (const [varName, path] of Object.entries(step.extract)) {
-              const value = resolvePath(resBody as Record<string, unknown>, path);
-              if (value === undefined) {
-                throw new Error(`Campo "${path}" não encontrado na resposta da API`);
+          const extracted = extractApiValues(result.body, step.extract);
+          if (extracted.missing.length) {
+            throw new Error(`Campo(s) ${extracted.missing.map((p) => `"${p}"`).join(", ")} não encontrado(s) na resposta da API`);
+          }
+          saveApiValues(extracted.values, ctx);
+        },
+      };
+    case "waitApi":
+      return {
+        name,
+        async run(ctx) {
+          if (!Object.keys(step.extract).length) {
+            throw new Error("waitApi precisa de pelo menos um campo em extract");
+          }
+          const totalTimeout = Math.max(1, step.timeoutMs ?? 120_000);
+          const interval = Math.max(500, step.intervalMs ?? 5_000);
+          const deadline = Date.now() + totalTimeout;
+          let attempt = 0;
+          let lastStatus: number | undefined;
+          let lastMissing = Object.values(step.extract);
+          let lastError: string | undefined;
+
+          while (Date.now() < deadline) {
+            attempt++;
+            const remaining = Math.max(1, deadline - Date.now());
+            try {
+              const result = await requestApi(step, ctx, Math.max(1, Math.min(timeout * 2, remaining)));
+              ctx.state[step.saveAs ?? "waitApiResponse"] = result;
+              lastStatus = result.status;
+              const statusReady = !(step.expect2xx ?? true) || (result.status >= 200 && result.status < 300);
+              const extracted = extractApiValues(result.body, step.extract);
+              lastMissing = extracted.missing;
+              if (statusReady && extracted.missing.length === 0) {
+                ctx.log(`  HTTP ${result.status} — valor recebido na tentativa ${attempt}`);
+                saveApiValues(extracted.values, ctx);
+                return;
               }
-              const key = `api.${varName}`;
-              ctx.input[key] = String(value);
-              ctx.log(`  → {{${key}}} = ${JSON.stringify(String(value))}`);
+              ctx.log(`  HTTP ${result.status} — ainda não disponível (tentativa ${attempt})`);
+            } catch (err) {
+              lastError = (err as Error).message;
+              ctx.log(`  API ainda indisponível (tentativa ${attempt}): ${lastError}`);
             }
+
+            const wait = Math.min(interval, deadline - Date.now());
+            if (wait > 0) await ctx.page.waitForTimeout(wait);
           }
+
+          const detail = lastError
+            ? `Último erro: ${lastError}`
+            : `último status: ${lastStatus ?? "sem resposta"}; aguardando: ${lastMissing.join(", ")}`;
+          throw new Error(`Tempo esgotado aguardando API após ${totalTimeout} ms. ${detail}`);
         },
       };
   }

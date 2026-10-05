@@ -27,8 +27,8 @@ describe.skipIf(process.env.E2E !== "1")("e2e: local-signup", () => {
     await rm(outputDir, { recursive: true, force: true });
   });
 
-  it("cadastra uma conta pelo formulário", async () => {
-    const password = "e2e-senha-secreta-123";
+  it("cadastra uma conta pelo formulário com verificação SMS", async () => {
+    const password = "E2e!senha-secreta-123";
     const result = await runWorkflow(localSignup, {
       config: { baseUrl },
       input: { password },
@@ -43,7 +43,13 @@ describe.skipIf(process.env.E2E !== "1")("e2e: local-signup", () => {
 
     expect(server.accounts.size).toBe(1);
     const account = [...server.accounts.values()][0];
-    expect(result.output).toEqual({ accountId: account.id, email: account.email });
+    expect(account.verified).toBe(true);
+    expect(result.output).toMatchObject({
+      accountId: account.id,
+      email: account.email,
+      phone: account.phone,
+      verified: true,
+    });
 
     const report = await readFile(result.reportPath!, "utf8");
     expect(JSON.parse(report).workflow).toBe("local-signup");
