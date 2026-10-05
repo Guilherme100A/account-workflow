@@ -7,7 +7,7 @@
 import path from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import type { Page } from "playwright-core";
-import { openSession } from "./browser.js";
+import { openSession, type Session } from "./browser.js";
 import type { BrowserOptions, RunResult, WorkflowConfig, WorkflowContext, WorkflowDefinition } from "./types.js";
 
 export interface RunOptions<I> {
@@ -16,6 +16,11 @@ export interface RunOptions<I> {
   browser?: BrowserOptions;
   outputDir?: string;
   logger?: (msg: string) => void;
+  /**
+   * Chamado com o navegador ainda aberto, logo antes de fechá-lo — permite
+   * salvar cookies/URL (ex.: checkpoint para continuar um replay depois).
+   */
+  beforeClose?: (session: Session, result: RunResult<unknown>) => Promise<void> | void;
 }
 
 export async function runWorkflow<I, O>(
@@ -63,6 +68,13 @@ export async function runWorkflow<I, O>(
     log(`✖ falhou: ${result.error}`);
   } finally {
     result.finishedAt = new Date().toISOString();
+    if (options.beforeClose) {
+      try {
+        await options.beforeClose(session, result as RunResult<unknown>);
+      } catch (err) {
+        log(`  (beforeClose falhou) ${(err as Error).message}`);
+      }
+    }
     await session.close();
   }
 

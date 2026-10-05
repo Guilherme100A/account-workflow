@@ -8,6 +8,8 @@ const LAST = ["Silva", "Souza", "Oliveira", "Pereira", "Costa", "Rodrigues", "Al
 const pick = <T>(arr: T[]): T => arr[crypto.randomInt(arr.length)];
 
 export interface FakePerson {
+  firstName: string;
+  lastName: string;
   fullName: string;
   email: string;
   password: string;
@@ -20,6 +22,8 @@ export function fakePerson({ emailDomain = "example.test" } = {}): FakePerson {
   const tag = crypto.randomBytes(3).toString("hex");
   const slug = `${first}.${last}`.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   return {
+    firstName: first,
+    lastName: last,
     fullName: `${first} ${last}`,
     email: `${slug}.${tag}@${emailDomain}`,
     password: `T3ste!${crypto.randomBytes(6).toString("base64url")}`,

@@ -64,6 +64,7 @@ async function readBody(req: http.IncomingMessage): Promise<RegistrationPayload>
 
 export function createTestServer() {
   const accounts = new Map<string, Account>();
+  const smsCodes = new Map<string, string>();
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -89,6 +90,27 @@ export function createTestServer() {
 
       if (req.method === "GET" && url.pathname === "/api/accounts") {
         return json(res, 200, [...accounts.values()]);
+      }
+
+      // Simula API de SMS: recebe o telefone, devolve um código.
+      if (req.method === "POST" && url.pathname === "/api/sms") {
+        const body = (await readBody(req)) as Record<string, unknown>;
+        const phone = body.phone as string | undefined;
+        if (!phone) return json(res, 400, { ok: false, error: "phone obrigatório" });
+        const code = String(100_000 + Math.floor(Math.random() * 900_000));
+        smsCodes.set(phone, code);
+        return json(res, 200, { ok: true, code });
+      }
+
+      // Verifica o código SMS.
+      if (req.method === "POST" && url.pathname === "/api/verify-sms") {
+        const body = (await readBody(req)) as Record<string, unknown>;
+        const phone = body.phone as string | undefined;
+        const code = body.code as string | undefined;
+        if (!phone || !code) return json(res, 400, { ok: false, error: "phone e code obrigatórios" });
+        if (smsCodes.get(phone) !== code) return json(res, 422, { ok: false, error: "código inválido" });
+        smsCodes.delete(phone);
+        return json(res, 200, { ok: true, verified: true });
       }
 
       if (req.method === "GET") {

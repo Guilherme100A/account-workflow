@@ -23,7 +23,9 @@ export async function openSession(opts: BrowserOptions = {}): Promise<Session> {
     proxy: opts.proxy,
     launchOptions: opts.slowMo ? { slowMo: opts.slowMo } : undefined,
   });
-  const context = await browser.newContext();
+  const context = await browser.newContext(
+    opts.storageState ? { storageState: opts.storageState as never } : {},
+  );
   const page = await context.newPage();
 
   return {

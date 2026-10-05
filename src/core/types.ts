@@ -11,6 +11,11 @@ export interface BrowserOptions {
   timezone?: string;
   /** Atraso (ms) entre ações — útil para depurar com `--headed`. */
   slowMo?: number;
+  /**
+   * Estado do navegador (cookies + localStorage) a restaurar no contexto —
+   * o objeto devolvido por `context.storageState()` ou o caminho de um JSON.
+   */
+  storageState?: string | object;
 }
 
 export interface WorkflowConfig {

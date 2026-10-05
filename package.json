@@ -7,7 +7,9 @@
     "workflow": "tsx src/cli.ts",
     "demo": "tsx src/cli.ts run local-signup --serve",
     "typecheck": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "record": "tsx src/cli.ts record",
+    "replay": "tsx src/cli.ts replay"
   },
   "keywords": [],
   "author": "",

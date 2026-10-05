@@ -1,3 +1,5 @@
 node_modules/
 runs/
 .maestri/
+recordings/*.checkpoint.json
+recordings/*.bak
